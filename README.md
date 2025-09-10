@@ -1,4 +1,4 @@
-```markdown
+
 # Network Monitoring System
 
 A comprehensive client-server application for real-time network and device monitoring with threshold-based alerting.
