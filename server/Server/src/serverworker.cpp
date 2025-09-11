@@ -7,6 +7,12 @@
 #include <QDebug>
 #include <QThread>
 
+/**
+ * @brief Конструктор ServerWorker
+ * @details Инициализирует серверный воркер, устанавливает начальные значения
+ *          и запускает таймер для проверки активности клиентов
+ * @param parent Родительский QObject
+ */
 ServerWorker::ServerWorker(QObject *parent)
     : QTcpServer(parent),
     m_nextClientId(1),
@@ -21,6 +27,10 @@ ServerWorker::ServerWorker(QObject *parent)
     m_heartbeatTimer->start(m_heartbeatInterval);
 }
 
+/**
+ * @brief Деструктор ServerWorker
+ * @details Останавливает таймер и сервер, освобождает ресурсы
+ */
 ServerWorker::~ServerWorker()
 {
     // qDebug()<< QDateTime::currentDateTime().toString("yyyy-MM-dd HH:mm:ss")
@@ -29,6 +39,11 @@ ServerWorker::~ServerWorker()
     stopServer();
 }
 
+/**
+ * @brief Проверяет соединения с клиентами
+ * @details Вызывается периодически для проверки активности клиентов,
+ *          отключает неактивных клиентов и очищает связанные ресурсы
+ */
 void ServerWorker::checkClientConnections()
 {
     // qDebug() << "=== checkClientConnections START ===";
@@ -86,6 +101,13 @@ void ServerWorker::checkClientConnections()
     }
     // qDebug() << "=== checkClientConnections END ===";
 }
+
+/**
+ * @brief Принудительно обрабатывает отключение клиента
+ * @details Вызывается при обнаружении неактивного клиента,
+ *          очищает все связанные с клиентом ресурсы
+ * @param socket Сокет отключившегося клиента
+ */
 void ServerWorker::onClientDisconnectedForced(QTcpSocket *socket)
 {
     if (!socket) return;
@@ -108,7 +130,12 @@ void ServerWorker::onClientDisconnectedForced(QTcpSocket *socket)
     socket->deleteLater();
 }
 
-
+/**
+ * @brief Запускает сервер на указанном порту
+ * @details Проверяет валидность порта, устанавливает прослушивание
+ *          и обновляет статус сервера
+ * @param port Порт для прослушивания подключений
+ */
 void ServerWorker::startServer(int port)
 {
     // qDebug()//<< QDateTime::currentDateTime().toString("yyyy-MM-dd HH:mm:ss").toStdString()
@@ -120,7 +147,7 @@ void ServerWorker::startServer(int port)
         return;
     }
     QMutexLocker locker(&m_mutex);
-    if (m_running) 
+    if (m_running)
     {
         emit serverStatus("Server already running");
         return;
@@ -137,6 +164,11 @@ void ServerWorker::startServer(int port)
     // qDebug()<<"Server started successfully";
 }
 
+/**
+ * @brief Останавливает сервер
+ * @details Закрывает все соединения с клиентами, останавливает прослушивание
+ *          и очищает внутренние структуры данных
+ */
 void ServerWorker::stopServer()
 {
     // qDebug() << QDateTime::currentDateTime().toString("yyyy-MM-dd HH:mm:ss")
@@ -180,6 +212,11 @@ void ServerWorker::stopServer()
     // qDebug() << "Server stopped successfully";
 }
 
+/**
+ * @brief Обновляет значения порогов
+ * @details Устанавливает новые значения порогов для проверки метрик клиентов
+ * @param thresholds Новые значения порогов в формате JSON
+ */
 void ServerWorker::updateThresholds(const QJsonObject &thresholds)
 {
     QMutexLocker locker(&m_mutex);
@@ -194,7 +231,9 @@ void ServerWorker::updateThresholds(const QJsonObject &thresholds)
 
 /**
  * @brief Обработчик входящих соединений
- * @param socketDescriptor Дескриптор сокета
+ * @details Создает сокет для нового клиента и настраивает обработчики
+ *          для чтения данных и отключения
+ * @param socketDescriptor Дескриптор сокета нового подключения
  */
 void ServerWorker::incomingConnection(qintptr socketDescriptor)
 {
@@ -226,6 +265,8 @@ void ServerWorker::incomingConnection(qintptr socketDescriptor)
 
 /**
  * @brief Обработчик готовности данных от клиента
+ * @details Читает и парсит данные от клиента, обрабатывает handshake
+ *          и обычные сообщения в зависимости от состояния клиента
  */
 void ServerWorker::onClientReadyRead()
 {
@@ -279,6 +320,8 @@ void ServerWorker::onClientReadyRead()
 
 /**
  * @brief Обрабатывает начальное рукопожатие с клиентом
+ * @details Регистрирует нового клиента или обрабатывает переподключение,
+ *          отправляет подтверждение и команду начала работы
  * @param socket Сокет клиента
  * @param handshake Объект с данными рукопожатия
  */
@@ -370,6 +413,11 @@ void ServerWorker::handleClientHandshake(QTcpSocket *socket, const QJsonObject &
     // qDebug() << "handleClientHandshake - END";
 }
 
+/**
+ * @brief Обработчик отключения клиента
+ * @details Вызывается при нормальном отключении клиента,
+ *          очищает связанные ресурсы и уведомляет об отключении
+ */
 void ServerWorker::onClientDisconnected()
 {
     // qDebug()<< QDateTime::currentDateTime().toString("yyyy-MM-dd HH:mm:ss")
@@ -410,6 +458,13 @@ void ServerWorker::onClientDisconnected()
     socket->deleteLater();
 }
 
+/**
+ * @brief Обрабатывает данные от клиента
+ * @details Разбирает полученные данные, обновляет время активности
+ *          и обрабатывает различные типы сообщений
+ * @param socket Сокет клиента
+ * @param json JSON объект с данными от клиента
+ */
 void ServerWorker::processClientData(QTcpSocket *socket, const QJsonObject &json)
 {
     // qDebug() << "processClientData - Processing data from client";
@@ -494,12 +549,24 @@ void ServerWorker::processClientData(QTcpSocket *socket, const QJsonObject &json
     // qDebug() << "processClientData - END for client:" << clientId;
 }
 
+/**
+ * @brief Получает сокет клиента по его ID
+ * @details Возвращает сокет клиента для заданного ID с защитой мьютексом
+ * @param clientId ID клиента
+ * @return Указатель на QTcpSocket клиента или nullptr если не найден
+ */
 QTcpSocket* ServerWorker::getClientSocket(int clientId)
 {
     QMutexLocker locker(&m_mutex);
     return m_socketMap.value(clientId, nullptr);
 }
 
+/**
+ * @brief Обрабатывает команду управления от клиента
+ * @details Обрабатывает ответы на команды управления обменом данными
+ * @param socket Сокет клиента
+ * @param json JSON объект с командой управления
+ */
 void ServerWorker::processControlCommand(QTcpSocket *socket, const QJsonObject &json)
 {
     int clientId = m_clients.value(socket, -1);
@@ -517,6 +584,14 @@ void ServerWorker::processControlCommand(QTcpSocket *socket, const QJsonObject &
                         .arg(status));
 }
 
+/**
+ * @brief Проверяет метрики на превышение порогов
+ * @details Сравнивает значения метрик с установленными порогами
+ *          и генерирует предупреждения при превышении
+ * @param clientId ID клиента
+ * @param type Тип данных (NetworkMetrics/DeviceStatus)
+ * @param data JSON объект с данными метрик
+ */
 void ServerWorker::checkThresholds(int clientId, const QString &type, const QJsonObject &data)
 {
     QJsonObject thresholdsCopy;
@@ -570,6 +645,12 @@ void ServerWorker::checkThresholds(int clientId, const QString &type, const QJso
     }
 }
 
+/**
+ * @brief Отправляет подтверждение подключения клиенту
+ * @details Создает и отправляет ACK сообщение с ID клиента
+ * @param socket Сокет клиента
+ * @param clientId ID клиента
+ */
 void ServerWorker::sendAck(QTcpSocket *socket, int clientId)
 {
     // qDebug()<<QDateTime::currentDateTime().toString("yyyy-MM-dd HH:mm:ss")<<"sendAck";
@@ -583,6 +664,12 @@ void ServerWorker::sendAck(QTcpSocket *socket, int clientId)
     socket->write("\n");
 }
 
+/**
+ * @brief Отправляет команду начала работы клиенту
+ * @details Создает и отправляет команду начала обмена данными
+ * @param socket Сокет клиента
+ * @param clientId ID клиента
+ */
 void ServerWorker::sendStart(QTcpSocket *socket, int clientId)
 {
     // qDebug()<< QDateTime::currentDateTime().toString("yyyy-MM-dd HH:mm:ss")
@@ -602,8 +689,8 @@ void ServerWorker::sendStart(QTcpSocket *socket, int clientId)
     }
     else if (bytesWritten != data.size()) {
         emit logMessage("Incomplete start command sent: " +
-            QString::number(bytesWritten) + "/" +
-            QString::number(data.size()) + " bytes");
+                        QString::number(bytesWritten) + "/" +
+                        QString::number(data.size()) + " bytes");
     }
     else {
         emit logMessage("Start command sent to client " + QString::number(clientId));
@@ -613,13 +700,23 @@ void ServerWorker::sendStart(QTcpSocket *socket, int clientId)
     socket->flush();
 }
 
+/**
+ * @brief Генерирует временную метку
+ * @details Создает строку с текущим временем в стандартном формате
+ * @return Строка с временной меткой
+ */
 QString ServerWorker::getTimestamp()
 {
     return QDateTime::currentDateTime().toString("yyyy-MM-dd HH:mm:ss.zzz");
 }
 
+/**
+ * @brief Получает информацию о клиенте
+ * @details Форматирует строку с IP и портом клиента
+ * @param socket Сокет клиента
+ * @return Строка с информацией о клиенте
+ */
 QString ServerWorker::getClientInfo(QTcpSocket *socket) const
 {
     return QString("%1:%2").arg(socket->peerAddress().toString()).arg(socket->peerPort());
 }
-

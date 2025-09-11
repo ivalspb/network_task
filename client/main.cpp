@@ -3,6 +3,14 @@
 #include <QCommandLineParser>
 #include <QTimer>
 
+/**
+ * @brief Точка входа клиентского приложения
+ * @details Инициализирует приложение, парсит аргументы командной строки,
+ *          создает и запускает сетевого клиента
+ * @param argc Количество аргументов командной строки
+ * @param argv Массив аргументов командной строки
+ * @return Код возврата приложения (0 - успешное завершение)
+ */
 int main(int argc, char *argv[])
 {
     QCoreApplication app(argc, argv);

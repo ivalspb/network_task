@@ -21,7 +21,9 @@ const bool TO_CONSOLE = true;
 
 /**
  * @brief Генерирует уникальный идентификатор процесса
- * @return Строка с уникальным ID процесса
+ * @details Создает ID на основе PID приложения и времени запуска,
+ *          гарантируя уникальность даже при перезапусках клиента
+ * @return Строка с уникальным ID процесса в формате "PID_время_запуска"
  */
 QString NetworkClient::generateProcessId()
 {
@@ -37,7 +39,9 @@ QString NetworkClient::generateProcessId()
 
 /**
  * @brief Конструктор NetworkClient
- * Инициализирует все компоненты клиента и устанавливает соединения сигналов
+ * @details Инициализирует все компоненты клиента: сокет, таймеры, метрики,
+ *          статус устройства и генератор логов. Устанавливает соединения сигналов.
+ * @param parent Родительский QObject
  */
 NetworkClient::NetworkClient(QObject *parent)
     : QObject(parent),
@@ -76,6 +80,10 @@ NetworkClient::NetworkClient(QObject *parent)
     connect(m_heartbeatTimer, &QTimer::timeout, this, &NetworkClient::checkConnectionHealth);
 }
 
+/**
+ * @brief Деструктор NetworkClient
+ * @details Останавливает все операции и освобождает ресурсы
+ */
 NetworkClient::~NetworkClient()
 {
     // logMessage("NetworkClient destructor");
@@ -84,7 +92,9 @@ NetworkClient::~NetworkClient()
 
 /**
  * @brief Запускает клиент с указанными параметрами сервера
- * @param address Адрес сервера
+ * @details Разрешает адрес сервера, запускает таймеры статистики
+ *          и инициирует подключение
+ * @param address Адрес сервера (IP или hostname)
  * @param port Порт сервера
  */
 void NetworkClient::start(const QString &address, quint16 port)
@@ -109,9 +119,10 @@ void NetworkClient::start(const QString &address, quint16 port)
     tryReconnect();
 }
 
-
 /**
  * @brief Останавливает клиент и закрывает все соединения
+ * @details Останавливает все таймеры, разрывает соединение
+ *          и освобождает ресурсы
  */
 void NetworkClient::stop()
 {
@@ -128,11 +139,13 @@ void NetworkClient::stop()
 
 /**
  * @brief Обработчик успешного подключения к серверу
+ * @details Настраивает TCP keepalive, отправляет начальное рукопожатие
+ *          и запускает мониторинг соединения
  */
 void NetworkClient::onConnected()
 {
     logMessage(QString("Connected to server %1:%2")
-        .arg(m_serverAddress.toString()).arg(m_serverPort), TO_CONSOLE);
+                   .arg(m_serverAddress.toString()).arg(m_serverPort), TO_CONSOLE);
     // Останавливаем таймер переподключения
     m_reconnectTimer->stop();
     m_connectionAcknowledged = false;
@@ -144,7 +157,7 @@ void NetworkClient::onConnected()
     if (fd != -1) {
         int keepalive = 1;
         int keepidle = 5;    // Начать проверки через 5 секунд простоя
-        int keepintvl = 2;   // Интервал проверок 2 секунды
+        int keepintvl = 2;   // Интервал проверки 2 секунды
         int keepcnt = 3;     // Количество проверок перед разрывом
         setsockopt(fd, SOL_SOCKET, SO_KEEPALIVE, &keepalive, sizeof(keepalive));
         setsockopt(fd, IPPROTO_TCP, TCP_KEEPIDLE, &keepidle, sizeof(keepidle));
@@ -160,6 +173,8 @@ void NetworkClient::onConnected()
 
 /**
  * @brief Отправляет начальное рукопожатие с сервером
+ * @details Создает и отправляет JSON сообщение с типом "ClientHandshake",
+ *          содержащее уникальный идентификатор процесса и временную метку
  */
 void NetworkClient::sendInitialHandshake()
 {
@@ -172,6 +187,11 @@ void NetworkClient::sendInitialHandshake()
     // logMessage("Sent initial handshake");
 }
 
+/**
+ * @brief Обработчик отключения от сервера
+ * @details Останавливает мониторинг heartbeat, таймер отправки данных
+ *          и планирует переподключение
+ */
 void NetworkClient::onDisconnected()
 {
     // logMessage("Disconnected from server");
@@ -188,6 +208,8 @@ void NetworkClient::onDisconnected()
 
 /**
  * @brief Обработчик входящих данных от сервера
+ * @details Читает и парсит входящие JSON сообщения, разделенные символом новой строки,
+ *          и передает их на обработку parseServerMessage
  */
 void NetworkClient::onReadyRead()
 {
@@ -215,6 +237,12 @@ void NetworkClient::onReadyRead()
     }
 }
 
+/**
+ * @brief Обработчик ошибок сокета
+ * @details Логирует ошибки и обрабатывает сетевые проблемы,
+ *          инициируя переподключение при необходимости
+ * @param error Тип ошибки сокета
+ */
 void NetworkClient::onErrorOccurred(QAbstractSocket::SocketError error)
 {
     QString errorStr = m_socket->errorString();
@@ -235,6 +263,8 @@ void NetworkClient::onErrorOccurred(QAbstractSocket::SocketError error)
 
 /**
  * @brief Отправляет данные серверу (вызывается по таймеру)
+ * @details Проверяет условия подключения, добавляет случайную задержку
+ *          и отправляет метрики сети, статус устройства и логи
  */
 void NetworkClient::sendData()
 {
@@ -269,6 +299,8 @@ void NetworkClient::sendData()
 
 /**
  * @brief Пытается переподключиться к серверу
+ * @details Закрывает существующее соединение и пытается установить новое,
+ *          с обработкой таймаутов и повторными попытками
  */
 void NetworkClient::tryReconnect()
 {
@@ -295,6 +327,8 @@ void NetworkClient::tryReconnect()
 
 /**
  * @brief Обновляет данные в реальном времени
+ * @details Вызывается по таймеру для обновления метрик сети
+ *          и статуса устройства перед отправкой на сервер
  */
 void NetworkClient::updateRealTimeData()
 {
@@ -306,6 +340,11 @@ void NetworkClient::updateRealTimeData()
     }
 }
 
+/**
+ * @brief Отправляет метрики сети на сервер
+ * @details Создает JSON сообщение с типом "NetworkMetrics",
+ *          содержащее данные о bandwidth, latency и packet loss
+ */
 void NetworkClient::sendNetworkMetrics()
 {
     // logMessage("sendNetworkMetrics");
@@ -318,6 +357,11 @@ void NetworkClient::sendNetworkMetrics()
     m_socket->write(createJsonMessage(message));
 }
 
+/**
+ * @brief Отправляет статус устройства на сервер
+ * @details Создает JSON сообщение с типом "DeviceStatus",
+ *          содержащее данные о uptime, CPU и memory usage
+ */
 void NetworkClient::sendDeviceStatus()
 {
     // logMessage("sendDeviceStatus");
@@ -331,6 +375,11 @@ void NetworkClient::sendDeviceStatus()
     // logMessage("Sent DeviceStatus data");
 }
 
+/**
+ * @brief Отправляет лог-сообщение на сервер
+ * @details Создает JSON сообщение с типом "Log",
+ *          содержащее сгенерированное лог-сообщение
+ */
 void NetworkClient::sendLog()
 {
     // logMessage("sendLog");
@@ -343,8 +392,10 @@ void NetworkClient::sendLog()
 
 /**
  * @brief Создает JSON сообщение для отправки
+ * @details Конвертирует JSON объект в компактный формат
+ *          и добавляет символ новой строки для разделения сообщений
  * @param obj JSON объект для отправки
- * @return Массив байт готовый для отправки
+ * @return Массив байт готовый для отправки по сети
  */
 QByteArray NetworkClient::createJsonMessage(const QJsonObject &obj)
 {
@@ -358,6 +409,7 @@ QByteArray NetworkClient::createJsonMessage(const QJsonObject &obj)
 
 /**
  * @brief Обрабатывает сообщения от сервера
+ * @details Анализирует тип сообщения и вызывает соответствующие обработчики
  * @param message JSON объект с сообщением от сервера
  */
 void NetworkClient::parseServerMessage(const QJsonObject &message)
@@ -410,6 +462,12 @@ void NetworkClient::parseServerMessage(const QJsonObject &message)
     m_lastHeartbeatResponse = QDateTime::currentDateTime();
 }
 
+/**
+ * @brief Обрабатывает команды управления от сервера
+ * @details Обрабатывает команды StartDataExchange/StopDataExchange,
+ *          изменяет состояние обмена данными и отправляет подтверждение
+ * @param message JSON объект с командой управления
+ */
 void NetworkClient::processControlCommand(const QJsonObject &message)
 {
     QString type = message.value("type").toString();
@@ -427,8 +485,10 @@ void NetworkClient::processControlCommand(const QJsonObject &message)
 
 /**
  * @brief Логирует сообщение
- * @param message Текст сообщения
- * @param toConsole Выводить ли в консоль
+ * @details Форматирует сообщение с временной меткой и выводит его
+ *          в консоль или внутренний лог в зависимости от параметра
+ * @param message Текст сообщения для логирования
+ * @param toConsole Флаг указывающий на вывод в консоль (true) или внутренний лог (false)
  */
 void NetworkClient::logMessage(const QString &message, bool toConsole)
 {
@@ -441,6 +501,11 @@ void NetworkClient::logMessage(const QString &message, bool toConsole)
     }
 }
 
+/**
+ * @brief Запускает мониторинг heartbeat соединения
+ * @details Инициализирует счетчики таймаутов и запускает таймер
+ *          для периодической проверки активности соединения
+ */
 void NetworkClient::startHeartbeatMonitoring()
 {
     m_heartbeatTimeout = 0;
@@ -449,12 +514,22 @@ void NetworkClient::startHeartbeatMonitoring()
     // logMessage("Heartbeat monitoring started", TO_CONSOLE);
 }
 
+/**
+ * @brief Останавливает мониторинг heartbeat соединения
+ * @details Прекращает проверку активности соединения
+ */
 void NetworkClient::stopHeartbeatMonitoring()
 {
     m_heartbeatTimer->stop();
     // logMessage("Heartbeat monitoring stopped", TO_CONSOLE);
 }
 
+/**
+ * @brief Проверяет состояние соединения
+ * @details Вызывается периодически для проверки активности сервера,
+ *          отслеживает время с последнего ответа и инициирует
+ *          переподключение при длительном отсутствии ответа
+ */
 void NetworkClient::checkConnectionHealth()
 {
     if (m_socket->state() != QAbstractSocket::ConnectedState || !m_connectionAcknowledged) {
@@ -477,6 +552,11 @@ void NetworkClient::checkConnectionHealth()
     sendHeartbeat();
 }
 
+/**
+ * @brief Отправляет heartbeat запрос на сервер
+ * @details Создает и отправляет сообщение типа "Heartbeat" для
+ *          проверки активности соединения и получения ответа
+ */
 void NetworkClient::sendHeartbeat()
 {
     if (m_socket->state() != QAbstractSocket::ConnectedState || !m_connectionAcknowledged) {

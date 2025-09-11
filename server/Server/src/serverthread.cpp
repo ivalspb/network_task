@@ -4,6 +4,12 @@
 #include <QMetaObject>
 #include <QEventLoop>
 
+/**
+ * @brief Конструктор ServerThread
+ * @details Инициализирует серверный поток с начальными порогами
+ * @param initialThresholds Начальные значения порогов в формате JSON
+ * @param parent Родительский QObject
+ */
 ServerThread::ServerThread(const QJsonObject &initialThresholds, QObject *parent)
     : QThread(parent),
     m_worker(nullptr),
@@ -14,6 +20,10 @@ ServerThread::ServerThread(const QJsonObject &initialThresholds, QObject *parent
 {
 }
 
+/**
+ * @brief Деструктор ServerThread
+ * @details Останавливает сервер и дожидается завершения потока
+ */
 ServerThread::~ServerThread()
 {
     stopServer();
@@ -23,6 +33,12 @@ ServerThread::~ServerThread()
     }
 }
 
+/**
+ * @brief Запускает сервер на указанном порту
+ * @details Устанавливает параметры и запускает поток, если он не запущен,
+ *          или отправляет команду запуска работающему воркеру
+ * @param port Порт для прослушивания подключений
+ */
 void ServerThread::startServer(int port)
 {
     m_port = port;
@@ -36,6 +52,11 @@ void ServerThread::startServer(int port)
     }
 }
 
+/**
+ * @brief Останавливает сервер
+ * @details Устанавливает флаг остановки и отправляет команду
+ *          остановки работающему воркеру
+ */
 void ServerThread::stopServer()
 {
     // qDebug() << "ServerThread::stopServer() - Thread:" << QThread::currentThreadId();
@@ -45,10 +66,15 @@ void ServerThread::stopServer()
         // qDebug() << "Invoking stopServer on worker...";
         QMetaObject::invokeMethod(m_worker, "stopServer", Qt::QueuedConnection);
         // qDebug() << "Worker stopServer invoked";
-    }      
+    }
     // qDebug() << "ServerThread stopped (but thread remains alive)";
 }
 
+/**
+ * @brief Обновляет значения порогов
+ * @details Отправляет новые значения порогов работающему воркеру
+ * @param thresholds Новые значения порогов в формате JSON
+ */
 void ServerThread::updateThresholds(const QJsonObject &thresholds)
 {
     // qDebug() << "ServerThread::updateThresholds called with:" << thresholds;
@@ -60,6 +86,13 @@ void ServerThread::updateThresholds(const QJsonObject &thresholds)
     }
 }
 
+/**
+ * @brief Получает сокет клиента по его ID
+ * @details Запрашивает сокет клиента у воркера с использованием
+ *          блокирующего соединения для thread-safe доступа
+ * @param clientId ID клиента
+ * @return Указатель на QTcpSocket клиента или nullptr если не найден
+ */
 QTcpSocket* ServerThread::getClientSocket(int clientId) const
 {
     if (m_worker) {
@@ -72,10 +105,16 @@ QTcpSocket* ServerThread::getClientSocket(int clientId) const
     return nullptr;
 }
 
+/**
+ * @brief Основной метод выполнения потока
+ * @details Создает ServerWorker, настраивает соединения сигналов,
+ *          устанавливает начальные пороги и запускает event loop
+ */
 void ServerThread::run()
 {
     // qDebug() << "ServerThread::run() started - Thread:" << QThread::currentThreadId();
     m_worker = new ServerWorker();
+
     // Проверяем, не запрошена ли остановка перед созданием worker
     if (m_stopRequested) {
         // qDebug() << "Stop requested before worker creation, exiting...";
@@ -85,6 +124,7 @@ void ServerThread::run()
         }
         return;
     }
+
     // Перенаправляем сигналы от worker'а
     connect(m_worker, &ServerWorker::clientConnected, this, &ServerThread::clientConnected);
     connect(m_worker, &ServerWorker::clientDisconnected, this, &ServerThread::clientDisconnected);
@@ -98,15 +138,20 @@ void ServerThread::run()
     connect(m_worker, &ServerWorker::serverStatus, this, &ServerThread::serverStatus);
     connect(m_worker, &ServerWorker::thresholdWarning, this, &ServerThread::thresholdWarning);
     connect(m_worker, &ServerWorker::clientControlStatusChanged, this, &ServerThread::clientControlStatusChanged);
+
     // qDebug() << "All signals connected in ServerThread";
+
     // Сразу после создания worker'а устанавливаем пороги по умолчанию
     if (!m_thresholds.isEmpty()) {
         m_worker->updateThresholds(m_thresholds);
     }
+
     if (m_startRequested && !m_stopRequested) {
         QMetaObject::invokeMethod(m_worker, "startServer", Qt::QueuedConnection, Q_ARG(int, m_port));
     }
+
     // qDebug() << "Entering event loop...";
+
     // Модифицированный event loop с проверкой флага остановки
     QEventLoop loop;
     while (!m_stopRequested) {
@@ -117,14 +162,14 @@ void ServerThread::run()
         }
         msleep(100);
     }
+
     // qDebug() << "Event loop exited, cleaning up...";
+
     // Очистка
     if (m_worker) {
         m_worker->deleteLater();
         m_worker = nullptr;
     }
+
     // qDebug() << "ServerThread::run() finished";
 }
-
-
-

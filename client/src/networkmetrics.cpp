@@ -13,6 +13,12 @@
 #include <QJsonObject>
 #include <QJsonDocument>
 
+/**
+ * @brief Конструктор NetworkMetrics
+ * @details Инициализирует метрики сети нулевыми значениями
+ *          и устанавливает начальные значения для расчета bandwidth
+ * @param parent Родительский QObject
+ */
 NetworkMetrics::NetworkMetrics(QObject *parent)
     : QObject(parent),
     m_bandwidth(0),
@@ -24,6 +30,13 @@ NetworkMetrics::NetworkMetrics(QObject *parent)
     m_lastTotalBytes = getTotalBytes();
 }
 
+/**
+ * @brief Обновляет все метрики сети
+ * @details Вызывает методы получения bandwidth, latency, packet loss
+ *          и имени интерфейса. Latency и packet loss обновляются
+ *          реже для уменьшения нагрузки
+ * @param targetAddress Целевой адрес для измерения latency и packet loss
+ */
 void NetworkMetrics::updateMetrics(const QHostAddress &targetAddress)
 {
     m_bandwidth = getNetworkBandwidth();
@@ -36,6 +49,12 @@ void NetworkMetrics::updateMetrics(const QHostAddress &targetAddress)
     counter++;
 }
 
+/**
+ * @brief Преобразует метрики сети в JSON объект
+ * @details Создает JSON объект с текущими значениями bandwidth,
+ *          latency, packet loss и имени интерфейса
+ * @return QJsonObject с метриками сети
+ */
 QJsonObject NetworkMetrics::toJson() const
 {
     QJsonObject metrics;
@@ -46,6 +65,12 @@ QJsonObject NetworkMetrics::toJson() const
     return metrics;
 }
 
+/**
+ * @brief Получает текущую пропускную способность сети
+ * @details Вычисляет bandwidth на основе разницы в переданных байтах
+ *          за интервал времени между вызовами метода
+ * @return Пропускная способность в байтах/секунду
+ */
 double NetworkMetrics::getNetworkBandwidth()
 {
     qint64 currentTotalBytes = getTotalBytes();
@@ -60,6 +85,13 @@ double NetworkMetrics::getNetworkBandwidth()
     return m_bandwidth;
 }
 
+/**
+ * @brief Получает задержку сети до целевого адреса
+ * @details Пытается измерить latency с помощью TCP эхо-запросов,
+ *          а при неудаче использует ping
+ * @param targetAddress Целевой адрес для измерения задержки
+ * @return Задержка в миллисекундах, или -1 при ошибке
+ */
 double NetworkMetrics::getNetworkLatency(const QHostAddress &targetAddress)
 {
     // Пробуем оба метода
@@ -74,6 +106,13 @@ double NetworkMetrics::getNetworkLatency(const QHostAddress &targetAddress)
     return -1;
 }
 
+/**
+ * @brief Получает потерю пакетов в сети
+ * @details Анализирует статистику TCP из /proc/net/snmp
+ *          для вычисления процента повторно переданных сегментов
+ * @param targetAddress Целевой адрес (не используется в текущей реализации)
+ * @return Процент потери пакетов (0-100)
+ */
 double NetworkMetrics::getPacketLoss(const QHostAddress &targetAddress)
 {
     Q_UNUSED(targetAddress);
@@ -105,6 +144,13 @@ double NetworkMetrics::getPacketLoss(const QHostAddress &targetAddress)
     return 0;
 }
 
+/**
+ * @brief Получает имя сетевого интерфейса для целевого адреса
+ * @details Использует команду ip route для определения интерфейса,
+ *          через который маршрутизируется трафик к целевому адресу
+ * @param targetAddress Целевой адрес для определения интерфейса
+ * @return Имя сетевого интерфейса, или "unknown" при ошибке
+ */
 QString NetworkMetrics::getNetworkInterfaceName(const QHostAddress &targetAddress)
 {
     QProcess process;
@@ -128,6 +174,12 @@ QString NetworkMetrics::getNetworkInterfaceName(const QHostAddress &targetAddres
     return "unknown";
 }
 
+/**
+ * @brief Получает общее количество переданных байтов через все интерфейсы
+ * @details Читает статистику из /proc/net/dev и суммирует байты
+ *          для всех активных интерфейсов (кроме loopback)
+ * @return Общее количество переданных и полученных байтов
+ */
 qint64 NetworkMetrics::getTotalBytes()
 {
     qint64 totalBytes = 0;
@@ -158,6 +210,14 @@ qint64 NetworkMetrics::getTotalBytes()
     return totalBytes;
 }
 
+/**
+ * @brief Измеряет задержку с помощью TCP эхо-запросов
+ * @details Устанавливает TCP соединение, отправляет эхо-запрос
+ *          и измеряет время до получения ответа
+ * @param address Целевой адрес
+ * @param port Целевой порт (по умолчанию 12345)
+ * @return RTT (Round-Trip Time) в миллисекундах, или -1 при ошибке
+ */
 double NetworkMetrics::measureTcpRttWithEcho(const QHostAddress &address, quint16 port)
 {
     QTcpSocket socket;
@@ -212,6 +272,13 @@ double NetworkMetrics::measureTcpRttWithEcho(const QHostAddress &address, quint1
     return -1;
 }
 
+/**
+ * @brief Измеряет задержку с помощью ping
+ * @details Запускает системную команду ping и парсит результат
+ *          для получения времени отклика
+ * @param address Целевой адрес для ping
+ * @return Задержка в миллисекундах, или -1 при ошибке
+ */
 double NetworkMetrics::measurePingLatency(const QHostAddress &address)
 {
     QProcess pingProcess;

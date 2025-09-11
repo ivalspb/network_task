@@ -1,6 +1,12 @@
 #include "../include/loggenerator.h"
 #include <QDateTime>
 
+/**
+ * @brief Конструктор LogGenerator
+ * @details Инициализирует генератор случайных чисел с безопасным seed
+ *          и заполняет списки сообщений разных уровней серьезности
+ * @param parent Родительский QObject
+ */
 LogGenerator::LogGenerator(QObject *parent)
     : QObject(parent),
     m_random(QRandomGenerator::securelySeeded()),
@@ -79,6 +85,12 @@ LogGenerator::LogGenerator(QObject *parent)
 {
 }
 
+/**
+ * @brief Генерирует случайное лог-сообщение
+ * @details Выбирает случайный уровень серьезности (INFO/WARNING/ERROR)
+ *          и генерирует соответствующее сообщение случайной длины
+ * @return QJsonObject с полями type, message, severity и timestamp
+ */
 QJsonObject LogGenerator::generateLog()
 {
     int severityChoice = m_random.bounded(100);
@@ -103,6 +115,11 @@ QJsonObject LogGenerator::generateLog()
     return logObject;
 }
 
+/**
+ * @brief Генерирует INFO сообщение случайной длины
+ * @details Выбирает между короткими, средними и длинными INFO сообщениями
+ * @return Строка с INFO сообщением
+ */
 QString LogGenerator::generateInfoMessage()
 {
     int lengthChoice = m_random.bounded(100);
@@ -118,6 +135,11 @@ QString LogGenerator::generateInfoMessage()
     }
 }
 
+/**
+ * @brief Генерирует WARNING сообщение случайной длины
+ * @details Выбирает между короткими, средними и длинными WARNING сообщениями
+ * @return Строка с WARNING сообщением
+ */
 QString LogGenerator::generateWarningMessage()
 {
     int lengthChoice = m_random.bounded(100);
@@ -130,6 +152,11 @@ QString LogGenerator::generateWarningMessage()
     }
 }
 
+/**
+ * @brief Генерирует ERROR сообщение случайной длины
+ * @details Выбирает между короткими, средними и длинными ERROR сообщениями
+ * @return Строка с ERROR сообщением
+ */
 QString LogGenerator::generateErrorMessage()
 {
     int lengthChoice = m_random.bounded(100);
@@ -142,6 +169,12 @@ QString LogGenerator::generateErrorMessage()
     }
 }
 
+/**
+ * @brief Генерирует длинное INFO сообщение
+ * @details Использует шаблоны с заполнителями для создания
+ *          детализированных INFO сообщений с реалистичными данными
+ * @return Длинная строка с INFO сообщением
+ */
 QString LogGenerator::generateLongInfoMessage()
 {
     static const QStringList longInfoTemplates = {
@@ -174,6 +207,12 @@ QString LogGenerator::generateLongInfoMessage()
         .arg(m_random.bounded(20) + 40);
 }
 
+/**
+ * @brief Генерирует длинное WARNING сообщение
+ * @details Использует шаблоны с заполнителями для создания
+ *          детализированных WARNING сообщений с реалистичными данными
+ * @return Длинная строка с WARNING сообщением
+ */
 QString LogGenerator::generateLongWarningMessage()
 {
     static const QStringList longWarningTemplates = {
@@ -203,6 +242,12 @@ QString LogGenerator::generateLongWarningMessage()
         .arg(m_random.bounded(10) + 3);
 }
 
+/**
+ * @brief Генерирует длинное ERROR сообщение
+ * @details Использует шаблоны с заполнителями для создания
+ *          детализированных ERROR сообщений с реалистичными данными
+ * @return Длинная строка с ERROR сообщением
+ */
 QString LogGenerator::generateLongErrorMessage()
 {
     static const QStringList longErrorTemplates = {

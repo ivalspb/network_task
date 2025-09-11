@@ -21,6 +21,12 @@ namespace {
 const int kPort = 12345;
 }
 
+/**
+ * @brief Конструктор MainWindow
+ * @details Инициализирует главное окно сервера, устанавливает пороги по умолчанию,
+ *          настраивает UI, создает серверный поток и подключает сигналы
+ * @param parent Родительский виджет
+ */
 MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent),
     m_serverThread(nullptr),
@@ -28,7 +34,7 @@ MainWindow::MainWindow(QWidget *parent)
     m_listenPort(kPort),
     m_nextRow(0)
 {
-    //  пороги по умолчанию
+    // пороги по умолчанию
     m_currentThresholds["cpu"] = 80.0;
     m_currentThresholds["memory"] = 85.0;
     m_currentThresholds["bandwidth"] = 800.0;
@@ -44,15 +50,20 @@ MainWindow::MainWindow(QWidget *parent)
             [this](int id, const QString &type, const QString &content, const QString &timestamp) {
                 // qDebug() << "MainWindow::dataFromClient received - ID:" << id << "Type:" << type;
                 onDataFromClient(id, type, content, timestamp);
-    });
+            });
     connect(m_serverThread, &ServerThread::logMessage, this, &MainWindow::onLogMessage);
     connect(m_serverThread, &ServerThread::serverStatus, this, &MainWindow::onServerStatusChanged);
-    connect(m_serverThread, &ServerThread::thresholdWarning, this, &MainWindow::onThresholdWarning);    
+    connect(m_serverThread, &ServerThread::thresholdWarning, this, &MainWindow::onThresholdWarning);
     log("Application started");
     log("Default thresholds applied");
     // qDebug() << "MainWindow signals connected";
 }
 
+/**
+ * @brief Деструктор MainWindow
+ * @details Останавливает сервер, дожидается завершения потока
+ *          и освобождает ресурсы
+ */
 MainWindow::~MainWindow()
 {
     // Останавливаем сервер но не уничтожаем поток
@@ -66,7 +77,12 @@ MainWindow::~MainWindow()
     m_serverThread = nullptr;
 }
 
-// Переопределяем closeEvent
+/**
+ * @brief Обработчик события закрытия окна
+ * @details Останавливает сервер и дожидается завершения потока
+ *          перед закрытием приложения
+ * @param event Событие закрытия
+ */
 void MainWindow::closeEvent(QCloseEvent *event)
 {
     // qDebug() << "Main window closing, stopping server...";
@@ -81,6 +97,11 @@ void MainWindow::closeEvent(QCloseEvent *event)
     event->accept();
 }
 
+/**
+ * @brief Настраивает пользовательский интерфейс
+ * @details Создает и размещает все элементы UI: кнопки, таблицы,
+ *          текстовые поля и настраивает их свойства
+ */
 void MainWindow::setupUi()
 {
     QWidget *centralWidget = new QWidget(this);
@@ -163,6 +184,11 @@ void MainWindow::setupUi()
     connect(m_settingsBtn, &QPushButton::clicked, this, &MainWindow::onSettingsRequested);
 }
 
+/**
+ * @brief Обработчик нажатия кнопки Start/Stop
+ * @details Запускает или останавливает сервер в зависимости от текущего состояния,
+ *          обновляет статусы клиентов при остановке
+ */
 void MainWindow::onStartStopClicked()
 {
     if (!m_running) {
@@ -197,7 +223,7 @@ void MainWindow::onStartStopClicked()
             log("Error starting server: " + QString(e.what()));
         }
     } else {
- // Остановка сервера
+        // Остановка сервера
         log("Stopping server...");
         if (m_serverThread) {
             // Перед остановкой сервера обновляем статусы всех клиентов на "Disconnected"
@@ -217,7 +243,12 @@ void MainWindow::onStartStopClicked()
     }
 }
 
-
+/**
+ * @brief Обработчик нажатия кнопки управления клиентом
+ * @details Отправляет команду Start/Stop data exchange выбранному клиенту
+ * @param clientId ID клиента
+ * @param start Флаг начала (true) или остановки (false) обмена данными
+ */
 void MainWindow::onClientControlClicked(int clientId, bool start)
 {
     // Используем новый публичный метод
@@ -242,6 +273,13 @@ void MainWindow::onClientControlClicked(int clientId, bool start)
     }
 }
 
+/**
+ * @brief Обработчик подключения нового клиента
+ * @details Добавляет клиента в таблицу или обновляет существующую запись,
+ *          сбрасывает флаги превышения порогов при переподключении
+ * @param id ID клиента
+ * @param ip IP адрес клиента
+ */
 void MainWindow::onClientConnected(int id, const QString &ip)
 {
     // qDebug() << "MainWindow::onClientConnected - ID:" << id << "IP:" << ip;
@@ -306,6 +344,12 @@ void MainWindow::onClientConnected(int id, const QString &ip)
     m_clientsTable->viewport()->update();
 }
 
+/**
+ * @brief Сбрасывает цвета строки данных клиента
+ * @details Восстанавливает стандартные цвета фона для всех ячеек
+ *          в строке данных указанного клиента
+ * @param clientData Данные клиента для сброса цветов
+ */
 void MainWindow::resetClientDataRowColors(ClientData &clientData)
 {
     // Получаем стандартный цвет фона из палитры таблицы
@@ -329,6 +373,12 @@ void MainWindow::resetClientDataRowColors(ClientData &clientData)
     // qDebug() << "Reset colors for client" << clientData.clientId;
 }
 
+/**
+ * @brief Обработчик отключения клиента
+ * @details Обновляет статус клиента в таблице на "Disconnected"
+ *          и изменяет цвет фона на красный
+ * @param id ID отключившегося клиента
+ */
 void MainWindow::onClientDisconnected(int id)
 {
     // qDebug() << "MainWindow::onClientDisconnected - ID:" << id;
@@ -341,12 +391,21 @@ void MainWindow::onClientDisconnected(int id)
                 statusItem->setBackground(Qt::red);
                 qDebug() << "Updated client" << id << "to Disconnected status at row:" << row;
             }
-            log(QString("Client disconnected - ID: %1").arg(id));
+            log(QString("Client %1 disconnected - ID: %2").arg(id));
             break;
         }
     }
 }
 
+/**
+ * @brief Обработчик получения данных от клиента
+ * @details Обновляет таблицу данных на основе полученной информации,
+ *          проверяет пороги и подсвечивает превышения
+ * @param id ID клиента
+ * @param type Тип данных (NetworkMetrics/DeviceStatus/Log)
+ * @param content Содержание данных
+ * @param timestamp Временная метка данных
+ */
 void MainWindow::onDataFromClient(int id, const QString &type,
                                   const QString &content, const QString &timestamp)
 {
@@ -495,6 +554,10 @@ void MainWindow::onDataFromClient(int id, const QString &type,
     // qDebug() << "Data processed for client ID:" << id;
 }
 
+/**
+ * @brief Обработчик запроса настроек
+ * @details Открывает диалог настроек порогов и применяет новые значения
+ */
 void MainWindow::onSettingsRequested()
 {
     SettingsDialog dialog(this);
@@ -505,6 +568,16 @@ void MainWindow::onSettingsRequested()
     }
 }
 
+/**
+ * @brief Обработчик предупреждений о превышении порогов
+ * @details Добавляет предупреждение в лог порогов и подсвечивает
+ *          соответствующие ячейки в таблице данных
+ * @param clientId ID клиента
+ * @param metric Метрика, вызвавшая предупреждение
+ * @param value Текущее значение метрики
+ * @param threshold Значение порога
+ * @param advice Рекомендация по устранению проблемы
+ */
 void MainWindow::onThresholdWarning(int clientId, const QString &metric,
                                     double value, double threshold, const QString &advice)
 {
@@ -543,16 +616,32 @@ void MainWindow::onThresholdWarning(int clientId, const QString &metric,
     }
 }
 
+/**
+ * @brief Обработчик лог-сообщений от сервера
+ * @details Добавляет сообщение в лог сервера
+ * @param msg Текст сообщения
+ */
 void MainWindow::onLogMessage(const QString &msg)
 {
     log(msg);
 }
 
+/**
+ * @brief Обработчик изменения статуса сервера
+ * @details Добавляет сообщение о статусе сервера в лог
+ * @param status Текст статуса сервера
+ */
 void MainWindow::onServerStatusChanged(const QString &status)
 {
     log("Server status: " + status);
 }
 
+/**
+ * @brief Добавляет сообщение в лог сервера
+ * @details Форматирует сообщение с временной меткой и добавляет его
+ *          в текстовое поле лога
+ * @param message Текст сообщения для логирования
+ */
 void MainWindow::log(const QString &message)
 {
     QString timestamp = QDateTime::currentDateTime().toString("yyyy-MM-dd HH:mm:ss");

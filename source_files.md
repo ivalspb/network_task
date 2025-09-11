@@ -126,6 +126,12 @@ private:
 #include <QDebug>
 #include <QThread>
 
+/**
+ * @brief Конструктор ServerWorker
+ * @details Инициализирует серверный воркер, устанавливает начальные значения
+ *          и запускает таймер для проверки активности клиентов
+ * @param parent Родительский QObject
+ */
 ServerWorker::ServerWorker(QObject *parent)
     : QTcpServer(parent),
     m_nextClientId(1),
@@ -140,6 +146,10 @@ ServerWorker::ServerWorker(QObject *parent)
     m_heartbeatTimer->start(m_heartbeatInterval);
 }
 
+/**
+ * @brief Деструктор ServerWorker
+ * @details Останавливает таймер и сервер, освобождает ресурсы
+ */
 ServerWorker::~ServerWorker()
 {
     // qDebug()<< QDateTime::currentDateTime().toString("yyyy-MM-dd HH:mm:ss")
@@ -148,17 +158,22 @@ ServerWorker::~ServerWorker()
     stopServer();
 }
 
+/**
+ * @brief Проверяет соединения с клиентами
+ * @details Вызывается периодически для проверки активности клиентов,
+ *          отключает неактивных клиентов и очищает связанные ресурсы
+ */
 void ServerWorker::checkClientConnections()
 {
     // qDebug() << "=== checkClientConnections START ===";
     // qDebug() << "Attempting to lock mutex...";
+    QList<QTcpSocket*> disconnectedSockets;
+    QList<int> disconnectedClientIds;
     QMutexLocker locker(&m_mutex);
     // qDebug() << "Mutex locked successfully";
     // qDebug() << "Active clients:" << m_clients.size();
     // qDebug() << "Socket map size:" << m_socketMap.size();
     QDateTime currentTime = QDateTime::currentDateTime();
-    QList<QTcpSocket*> disconnectedSockets;
-    QList<int> disconnectedClientIds;
     // СОБИРАЕМ данные для отключения под защитой мьютекса
     for (auto it = m_clients.begin(); it != m_clients.end(); ++it) {
         QTcpSocket* socket = it.key();
@@ -205,6 +220,13 @@ void ServerWorker::checkClientConnections()
     }
     // qDebug() << "=== checkClientConnections END ===";
 }
+
+/**
+ * @brief Принудительно обрабатывает отключение клиента
+ * @details Вызывается при обнаружении неактивного клиента,
+ *          очищает все связанные с клиентом ресурсы
+ * @param socket Сокет отключившегося клиента
+ */
 void ServerWorker::onClientDisconnectedForced(QTcpSocket *socket)
 {
     if (!socket) return;
@@ -227,7 +249,12 @@ void ServerWorker::onClientDisconnectedForced(QTcpSocket *socket)
     socket->deleteLater();
 }
 
-
+/**
+ * @brief Запускает сервер на указанном порту
+ * @details Проверяет валидность порта, устанавливает прослушивание
+ *          и обновляет статус сервера
+ * @param port Порт для прослушивания подключений
+ */
 void ServerWorker::startServer(int port)
 {
     // qDebug()//<< QDateTime::currentDateTime().toString("yyyy-MM-dd HH:mm:ss").toStdString()
@@ -239,7 +266,7 @@ void ServerWorker::startServer(int port)
         return;
     }
     QMutexLocker locker(&m_mutex);
-    if (m_running) 
+    if (m_running)
     {
         emit serverStatus("Server already running");
         return;
@@ -256,6 +283,11 @@ void ServerWorker::startServer(int port)
     // qDebug()<<"Server started successfully";
 }
 
+/**
+ * @brief Останавливает сервер
+ * @details Закрывает все соединения с клиентами, останавливает прослушивание
+ *          и очищает внутренние структуры данных
+ */
 void ServerWorker::stopServer()
 {
     // qDebug() << QDateTime::currentDateTime().toString("yyyy-MM-dd HH:mm:ss")
@@ -299,6 +331,11 @@ void ServerWorker::stopServer()
     // qDebug() << "Server stopped successfully";
 }
 
+/**
+ * @brief Обновляет значения порогов
+ * @details Устанавливает новые значения порогов для проверки метрик клиентов
+ * @param thresholds Новые значения порогов в формате JSON
+ */
 void ServerWorker::updateThresholds(const QJsonObject &thresholds)
 {
     QMutexLocker locker(&m_mutex);
@@ -313,7 +350,9 @@ void ServerWorker::updateThresholds(const QJsonObject &thresholds)
 
 /**
  * @brief Обработчик входящих соединений
- * @param socketDescriptor Дескриптор сокета
+ * @details Создает сокет для нового клиента и настраивает обработчики
+ *          для чтения данных и отключения
+ * @param socketDescriptor Дескриптор сокета нового подключения
  */
 void ServerWorker::incomingConnection(qintptr socketDescriptor)
 {
@@ -345,6 +384,8 @@ void ServerWorker::incomingConnection(qintptr socketDescriptor)
 
 /**
  * @brief Обработчик готовности данных от клиента
+ * @details Читает и парсит данные от клиента, обрабатывает handshake
+ *          и обычные сообщения в зависимости от состояния клиента
  */
 void ServerWorker::onClientReadyRead()
 {
@@ -398,6 +439,8 @@ void ServerWorker::onClientReadyRead()
 
 /**
  * @brief Обрабатывает начальное рукопожатие с клиентом
+ * @details Регистрирует нового клиента или обрабатывает переподключение,
+ *          отправляет подтверждение и команду начала работы
  * @param socket Сокет клиента
  * @param handshake Объект с данными рукопожатия
  */
@@ -489,6 +532,11 @@ void ServerWorker::handleClientHandshake(QTcpSocket *socket, const QJsonObject &
     // qDebug() << "handleClientHandshake - END";
 }
 
+/**
+ * @brief Обработчик отключения клиента
+ * @details Вызывается при нормальном отключении клиента,
+ *          очищает связанные ресурсы и уведомляет об отключении
+ */
 void ServerWorker::onClientDisconnected()
 {
     // qDebug()<< QDateTime::currentDateTime().toString("yyyy-MM-dd HH:mm:ss")
@@ -529,6 +577,13 @@ void ServerWorker::onClientDisconnected()
     socket->deleteLater();
 }
 
+/**
+ * @brief Обрабатывает данные от клиента
+ * @details Разбирает полученные данные, обновляет время активности
+ *          и обрабатывает различные типы сообщений
+ * @param socket Сокет клиента
+ * @param json JSON объект с данными от клиента
+ */
 void ServerWorker::processClientData(QTcpSocket *socket, const QJsonObject &json)
 {
     // qDebug() << "processClientData - Processing data from client";
@@ -613,12 +668,24 @@ void ServerWorker::processClientData(QTcpSocket *socket, const QJsonObject &json
     // qDebug() << "processClientData - END for client:" << clientId;
 }
 
+/**
+ * @brief Получает сокет клиента по его ID
+ * @details Возвращает сокет клиента для заданного ID с защитой мьютексом
+ * @param clientId ID клиента
+ * @return Указатель на QTcpSocket клиента или nullptr если не найден
+ */
 QTcpSocket* ServerWorker::getClientSocket(int clientId)
 {
     QMutexLocker locker(&m_mutex);
     return m_socketMap.value(clientId, nullptr);
 }
 
+/**
+ * @brief Обрабатывает команду управления от клиента
+ * @details Обрабатывает ответы на команды управления обменом данными
+ * @param socket Сокет клиента
+ * @param json JSON объект с командой управления
+ */
 void ServerWorker::processControlCommand(QTcpSocket *socket, const QJsonObject &json)
 {
     int clientId = m_clients.value(socket, -1);
@@ -636,6 +703,14 @@ void ServerWorker::processControlCommand(QTcpSocket *socket, const QJsonObject &
                         .arg(status));
 }
 
+/**
+ * @brief Проверяет метрики на превышение порогов
+ * @details Сравнивает значения метрик с установленными порогами
+ *          и генерирует предупреждения при превышении
+ * @param clientId ID клиента
+ * @param type Тип данных (NetworkMetrics/DeviceStatus)
+ * @param data JSON объект с данными метрик
+ */
 void ServerWorker::checkThresholds(int clientId, const QString &type, const QJsonObject &data)
 {
     QJsonObject thresholdsCopy;
@@ -689,6 +764,12 @@ void ServerWorker::checkThresholds(int clientId, const QString &type, const QJso
     }
 }
 
+/**
+ * @brief Отправляет подтверждение подключения клиенту
+ * @details Создает и отправляет ACK сообщение с ID клиента
+ * @param socket Сокет клиента
+ * @param clientId ID клиента
+ */
 void ServerWorker::sendAck(QTcpSocket *socket, int clientId)
 {
     // qDebug()<<QDateTime::currentDateTime().toString("yyyy-MM-dd HH:mm:ss")<<"sendAck";
@@ -702,6 +783,12 @@ void ServerWorker::sendAck(QTcpSocket *socket, int clientId)
     socket->write("\n");
 }
 
+/**
+ * @brief Отправляет команду начала работы клиенту
+ * @details Создает и отправляет команду начала обмена данными
+ * @param socket Сокет клиента
+ * @param clientId ID клиента
+ */
 void ServerWorker::sendStart(QTcpSocket *socket, int clientId)
 {
     // qDebug()<< QDateTime::currentDateTime().toString("yyyy-MM-dd HH:mm:ss")
@@ -721,8 +808,8 @@ void ServerWorker::sendStart(QTcpSocket *socket, int clientId)
     }
     else if (bytesWritten != data.size()) {
         emit logMessage("Incomplete start command sent: " +
-            QString::number(bytesWritten) + "/" +
-            QString::number(data.size()) + " bytes");
+                        QString::number(bytesWritten) + "/" +
+                        QString::number(data.size()) + " bytes");
     }
     else {
         emit logMessage("Start command sent to client " + QString::number(clientId));
@@ -732,16 +819,26 @@ void ServerWorker::sendStart(QTcpSocket *socket, int clientId)
     socket->flush();
 }
 
+/**
+ * @brief Генерирует временную метку
+ * @details Создает строку с текущим временем в стандартном формате
+ * @return Строка с временной меткой
+ */
 QString ServerWorker::getTimestamp()
 {
     return QDateTime::currentDateTime().toString("yyyy-MM-dd HH:mm:ss.zzz");
 }
 
+/**
+ * @brief Получает информацию о клиенте
+ * @details Форматирует строку с IP и портом клиента
+ * @param socket Сокет клиента
+ * @return Строка с информацией о клиенте
+ */
 QString ServerWorker::getClientInfo(QTcpSocket *socket) const
 {
     return QString("%1:%2").arg(socket->peerAddress().toString()).arg(socket->peerPort());
 }
-
 
 ```
 
@@ -757,6 +854,12 @@ QString ServerWorker::getClientInfo(QTcpSocket *socket) const
 #include <QMetaObject>
 #include <QEventLoop>
 
+/**
+ * @brief Конструктор ServerThread
+ * @details Инициализирует серверный поток с начальными порогами
+ * @param initialThresholds Начальные значения порогов в формате JSON
+ * @param parent Родительский QObject
+ */
 ServerThread::ServerThread(const QJsonObject &initialThresholds, QObject *parent)
     : QThread(parent),
     m_worker(nullptr),
@@ -767,6 +870,10 @@ ServerThread::ServerThread(const QJsonObject &initialThresholds, QObject *parent
 {
 }
 
+/**
+ * @brief Деструктор ServerThread
+ * @details Останавливает сервер и дожидается завершения потока
+ */
 ServerThread::~ServerThread()
 {
     stopServer();
@@ -776,6 +883,12 @@ ServerThread::~ServerThread()
     }
 }
 
+/**
+ * @brief Запускает сервер на указанном порту
+ * @details Устанавливает параметры и запускает поток, если он не запущен,
+ *          или отправляет команду запуска работающему воркеру
+ * @param port Порт для прослушивания подключений
+ */
 void ServerThread::startServer(int port)
 {
     m_port = port;
@@ -789,6 +902,11 @@ void ServerThread::startServer(int port)
     }
 }
 
+/**
+ * @brief Останавливает сервер
+ * @details Устанавливает флаг остановки и отправляет команду
+ *          остановки работающему воркеру
+ */
 void ServerThread::stopServer()
 {
     // qDebug() << "ServerThread::stopServer() - Thread:" << QThread::currentThreadId();
@@ -798,10 +916,15 @@ void ServerThread::stopServer()
         // qDebug() << "Invoking stopServer on worker...";
         QMetaObject::invokeMethod(m_worker, "stopServer", Qt::QueuedConnection);
         // qDebug() << "Worker stopServer invoked";
-    }      
+    }
     // qDebug() << "ServerThread stopped (but thread remains alive)";
 }
 
+/**
+ * @brief Обновляет значения порогов
+ * @details Отправляет новые значения порогов работающему воркеру
+ * @param thresholds Новые значения порогов в формате JSON
+ */
 void ServerThread::updateThresholds(const QJsonObject &thresholds)
 {
     // qDebug() << "ServerThread::updateThresholds called with:" << thresholds;
@@ -813,6 +936,13 @@ void ServerThread::updateThresholds(const QJsonObject &thresholds)
     }
 }
 
+/**
+ * @brief Получает сокет клиента по его ID
+ * @details Запрашивает сокет клиента у воркера с использованием
+ *          блокирующего соединения для thread-safe доступа
+ * @param clientId ID клиента
+ * @return Указатель на QTcpSocket клиента или nullptr если не найден
+ */
 QTcpSocket* ServerThread::getClientSocket(int clientId) const
 {
     if (m_worker) {
@@ -825,10 +955,16 @@ QTcpSocket* ServerThread::getClientSocket(int clientId) const
     return nullptr;
 }
 
+/**
+ * @brief Основной метод выполнения потока
+ * @details Создает ServerWorker, настраивает соединения сигналов,
+ *          устанавливает начальные пороги и запускает event loop
+ */
 void ServerThread::run()
 {
     // qDebug() << "ServerThread::run() started - Thread:" << QThread::currentThreadId();
     m_worker = new ServerWorker();
+
     // Проверяем, не запрошена ли остановка перед созданием worker
     if (m_stopRequested) {
         // qDebug() << "Stop requested before worker creation, exiting...";
@@ -838,6 +974,7 @@ void ServerThread::run()
         }
         return;
     }
+
     // Перенаправляем сигналы от worker'а
     connect(m_worker, &ServerWorker::clientConnected, this, &ServerThread::clientConnected);
     connect(m_worker, &ServerWorker::clientDisconnected, this, &ServerThread::clientDisconnected);
@@ -851,15 +988,20 @@ void ServerThread::run()
     connect(m_worker, &ServerWorker::serverStatus, this, &ServerThread::serverStatus);
     connect(m_worker, &ServerWorker::thresholdWarning, this, &ServerThread::thresholdWarning);
     connect(m_worker, &ServerWorker::clientControlStatusChanged, this, &ServerThread::clientControlStatusChanged);
+
     // qDebug() << "All signals connected in ServerThread";
+
     // Сразу после создания worker'а устанавливаем пороги по умолчанию
     if (!m_thresholds.isEmpty()) {
         m_worker->updateThresholds(m_thresholds);
     }
+
     if (m_startRequested && !m_stopRequested) {
         QMetaObject::invokeMethod(m_worker, "startServer", Qt::QueuedConnection, Q_ARG(int, m_port));
     }
+
     // qDebug() << "Entering event loop...";
+
     // Модифицированный event loop с проверкой флага остановки
     QEventLoop loop;
     while (!m_stopRequested) {
@@ -870,17 +1012,17 @@ void ServerThread::run()
         }
         msleep(100);
     }
+
     // qDebug() << "Event loop exited, cleaning up...";
+
     // Очистка
     if (m_worker) {
         m_worker->deleteLater();
         m_worker = nullptr;
     }
+
     // qDebug() << "ServerThread::run() finished";
 }
-
-
-
 
 ```
 
@@ -1026,46 +1168,71 @@ private:
 #include <QDoubleSpinBox>
 #include <QLabel>
 
+/**
+ * @brief Конструктор SettingsDialog
+ * @details Создает диалоговое окно настроек порогов с элементами управления
+ *          для установки значений CPU, памяти, bandwidth и latency
+ * @param parent Родительский виджет
+ */
 SettingsDialog::SettingsDialog(QWidget *parent)
     : QDialog(parent)
 {
     setWindowTitle("Client Threshold Settings");
     setModal(true);
+
+    // Создаем layout для размещения элементов
     QFormLayout *layout = new QFormLayout(this);
+
     // CPU Threshold
     m_cpuThreshold = new QDoubleSpinBox(this);
     m_cpuThreshold->setRange(0, 100);
     m_cpuThreshold->setValue(80);
     m_cpuThreshold->setSuffix("%");
     layout->addRow("CPU Usage Threshold:", m_cpuThreshold);
+
     // Memory Threshold
     m_memoryThreshold = new QDoubleSpinBox(this);
     m_memoryThreshold->setRange(0, 100);
     m_memoryThreshold->setValue(85);
     m_memoryThreshold->setSuffix("%");
     layout->addRow("Memory Usage Threshold:", m_memoryThreshold);
+
     // Bandwidth Threshold
     m_bandwidthThreshold = new QDoubleSpinBox(this);
     m_bandwidthThreshold->setRange(0, 1000);
     m_bandwidthThreshold->setValue(800);
     m_bandwidthThreshold->setSuffix(" Mbps");
     layout->addRow("Bandwidth Threshold:", m_bandwidthThreshold);
+
     // Latency Threshold
     m_latencyThreshold = new QDoubleSpinBox(this);
     m_latencyThreshold->setRange(0, 1000);
     m_latencyThreshold->setValue(100);
     m_latencyThreshold->setSuffix(" ms");
     layout->addRow("Latency Threshold:", m_latencyThreshold);
-    // Кнопки
+
+    // Кнопки OK и Cancel
     QDialogButtonBox *buttonBox = new QDialogButtonBox(
         QDialogButtonBox::Ok | QDialogButtonBox::Cancel, this);
     layout->addRow(buttonBox);
+
+    // Подключаем сигналы кнопок
     connect(buttonBox, &QDialogButtonBox::accepted, this, &QDialog::accept);
     connect(buttonBox, &QDialogButtonBox::rejected, this, &QDialog::reject);
 }
 
+/**
+ * @brief Деструктор SettingsDialog
+ * @details Освобождает ресурсы, связанные с диалоговым окном
+ */
 SettingsDialog::~SettingsDialog() {}
 
+/**
+ * @brief Получает текущие значения порогов в формате JSON
+ * @details Собирает значения из всех spinbox'ов и формирует
+ *          JSON объект с соответствующими ключами
+ * @return QJsonObject с текущими значениями порогов
+ */
 QJsonObject SettingsDialog::thresholdsJson() const
 {
     QJsonObject thresholds;
@@ -1107,6 +1274,12 @@ namespace {
 const int kPort = 12345;
 }
 
+/**
+ * @brief Конструктор MainWindow
+ * @details Инициализирует главное окно сервера, устанавливает пороги по умолчанию,
+ *          настраивает UI, создает серверный поток и подключает сигналы
+ * @param parent Родительский виджет
+ */
 MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent),
     m_serverThread(nullptr),
@@ -1114,7 +1287,7 @@ MainWindow::MainWindow(QWidget *parent)
     m_listenPort(kPort),
     m_nextRow(0)
 {
-    //  пороги по умолчанию
+    // пороги по умолчанию
     m_currentThresholds["cpu"] = 80.0;
     m_currentThresholds["memory"] = 85.0;
     m_currentThresholds["bandwidth"] = 800.0;
@@ -1130,15 +1303,20 @@ MainWindow::MainWindow(QWidget *parent)
             [this](int id, const QString &type, const QString &content, const QString &timestamp) {
                 // qDebug() << "MainWindow::dataFromClient received - ID:" << id << "Type:" << type;
                 onDataFromClient(id, type, content, timestamp);
-    });
+            });
     connect(m_serverThread, &ServerThread::logMessage, this, &MainWindow::onLogMessage);
     connect(m_serverThread, &ServerThread::serverStatus, this, &MainWindow::onServerStatusChanged);
-    connect(m_serverThread, &ServerThread::thresholdWarning, this, &MainWindow::onThresholdWarning);    
+    connect(m_serverThread, &ServerThread::thresholdWarning, this, &MainWindow::onThresholdWarning);
     log("Application started");
     log("Default thresholds applied");
     // qDebug() << "MainWindow signals connected";
 }
 
+/**
+ * @brief Деструктор MainWindow
+ * @details Останавливает сервер, дожидается завершения потока
+ *          и освобождает ресурсы
+ */
 MainWindow::~MainWindow()
 {
     // Останавливаем сервер но не уничтожаем поток
@@ -1152,7 +1330,12 @@ MainWindow::~MainWindow()
     m_serverThread = nullptr;
 }
 
-// Переопределяем closeEvent
+/**
+ * @brief Обработчик события закрытия окна
+ * @details Останавливает сервер и дожидается завершения потока
+ *          перед закрытием приложения
+ * @param event Событие закрытия
+ */
 void MainWindow::closeEvent(QCloseEvent *event)
 {
     // qDebug() << "Main window closing, stopping server...";
@@ -1167,6 +1350,11 @@ void MainWindow::closeEvent(QCloseEvent *event)
     event->accept();
 }
 
+/**
+ * @brief Настраивает пользовательский интерфейс
+ * @details Создает и размещает все элементы UI: кнопки, таблицы,
+ *          текстовые поля и настраивает их свойства
+ */
 void MainWindow::setupUi()
 {
     QWidget *centralWidget = new QWidget(this);
@@ -1249,6 +1437,11 @@ void MainWindow::setupUi()
     connect(m_settingsBtn, &QPushButton::clicked, this, &MainWindow::onSettingsRequested);
 }
 
+/**
+ * @brief Обработчик нажатия кнопки Start/Stop
+ * @details Запускает или останавливает сервер в зависимости от текущего состояния,
+ *          обновляет статусы клиентов при остановке
+ */
 void MainWindow::onStartStopClicked()
 {
     if (!m_running) {
@@ -1283,7 +1476,7 @@ void MainWindow::onStartStopClicked()
             log("Error starting server: " + QString(e.what()));
         }
     } else {
- // Остановка сервера
+        // Остановка сервера
         log("Stopping server...");
         if (m_serverThread) {
             // Перед остановкой сервера обновляем статусы всех клиентов на "Disconnected"
@@ -1303,7 +1496,12 @@ void MainWindow::onStartStopClicked()
     }
 }
 
-
+/**
+ * @brief Обработчик нажатия кнопки управления клиентом
+ * @details Отправляет команду Start/Stop data exchange выбранному клиенту
+ * @param clientId ID клиента
+ * @param start Флаг начала (true) или остановки (false) обмена данными
+ */
 void MainWindow::onClientControlClicked(int clientId, bool start)
 {
     // Используем новый публичный метод
@@ -1328,6 +1526,13 @@ void MainWindow::onClientControlClicked(int clientId, bool start)
     }
 }
 
+/**
+ * @brief Обработчик подключения нового клиента
+ * @details Добавляет клиента в таблицу или обновляет существующую запись,
+ *          сбрасывает флаги превышения порогов при переподключении
+ * @param id ID клиента
+ * @param ip IP адрес клиента
+ */
 void MainWindow::onClientConnected(int id, const QString &ip)
 {
     // qDebug() << "MainWindow::onClientConnected - ID:" << id << "IP:" << ip;
@@ -1392,6 +1597,12 @@ void MainWindow::onClientConnected(int id, const QString &ip)
     m_clientsTable->viewport()->update();
 }
 
+/**
+ * @brief Сбрасывает цвета строки данных клиента
+ * @details Восстанавливает стандартные цвета фона для всех ячеек
+ *          в строке данных указанного клиента
+ * @param clientData Данные клиента для сброса цветов
+ */
 void MainWindow::resetClientDataRowColors(ClientData &clientData)
 {
     // Получаем стандартный цвет фона из палитры таблицы
@@ -1415,6 +1626,12 @@ void MainWindow::resetClientDataRowColors(ClientData &clientData)
     // qDebug() << "Reset colors for client" << clientData.clientId;
 }
 
+/**
+ * @brief Обработчик отключения клиента
+ * @details Обновляет статус клиента в таблице на "Disconnected"
+ *          и изменяет цвет фона на красный
+ * @param id ID отключившегося клиента
+ */
 void MainWindow::onClientDisconnected(int id)
 {
     // qDebug() << "MainWindow::onClientDisconnected - ID:" << id;
@@ -1427,12 +1644,21 @@ void MainWindow::onClientDisconnected(int id)
                 statusItem->setBackground(Qt::red);
                 qDebug() << "Updated client" << id << "to Disconnected status at row:" << row;
             }
-            log(QString("Client disconnected - ID: %1").arg(id));
+            log(QString("Client %1 disconnected - ID: %2").arg(id));
             break;
         }
     }
 }
 
+/**
+ * @brief Обработчик получения данных от клиента
+ * @details Обновляет таблицу данных на основе полученной информации,
+ *          проверяет пороги и подсвечивает превышения
+ * @param id ID клиента
+ * @param type Тип данных (NetworkMetrics/DeviceStatus/Log)
+ * @param content Содержание данных
+ * @param timestamp Временная метка данных
+ */
 void MainWindow::onDataFromClient(int id, const QString &type,
                                   const QString &content, const QString &timestamp)
 {
@@ -1581,6 +1807,10 @@ void MainWindow::onDataFromClient(int id, const QString &type,
     // qDebug() << "Data processed for client ID:" << id;
 }
 
+/**
+ * @brief Обработчик запроса настроек
+ * @details Открывает диалог настроек порогов и применяет новые значения
+ */
 void MainWindow::onSettingsRequested()
 {
     SettingsDialog dialog(this);
@@ -1591,6 +1821,16 @@ void MainWindow::onSettingsRequested()
     }
 }
 
+/**
+ * @brief Обработчик предупреждений о превышении порогов
+ * @details Добавляет предупреждение в лог порогов и подсвечивает
+ *          соответствующие ячейки в таблице данных
+ * @param clientId ID клиента
+ * @param metric Метрика, вызвавшая предупреждение
+ * @param value Текущее значение метрики
+ * @param threshold Значение порога
+ * @param advice Рекомендация по устранению проблемы
+ */
 void MainWindow::onThresholdWarning(int clientId, const QString &metric,
                                     double value, double threshold, const QString &advice)
 {
@@ -1629,16 +1869,32 @@ void MainWindow::onThresholdWarning(int clientId, const QString &metric,
     }
 }
 
+/**
+ * @brief Обработчик лог-сообщений от сервера
+ * @details Добавляет сообщение в лог сервера
+ * @param msg Текст сообщения
+ */
 void MainWindow::onLogMessage(const QString &msg)
 {
     log(msg);
 }
 
+/**
+ * @brief Обработчик изменения статуса сервера
+ * @details Добавляет сообщение о статусе сервера в лог
+ * @param status Текст статуса сервера
+ */
 void MainWindow::onServerStatusChanged(const QString &status)
 {
     log("Server status: " + status);
 }
 
+/**
+ * @brief Добавляет сообщение в лог сервера
+ * @details Форматирует сообщение с временной меткой и добавляет его
+ *          в текстовое поле лога
+ * @param message Текст сообщения для логирования
+ */
 void MainWindow::log(const QString &message)
 {
     QString timestamp = QDateTime::currentDateTime().toString("yyyy-MM-dd HH:mm:ss");
@@ -1857,7 +2113,9 @@ const bool TO_CONSOLE = true;
 
 /**
  * @brief Генерирует уникальный идентификатор процесса
- * @return Строка с уникальным ID процесса
+ * @details Создает ID на основе PID приложения и времени запуска,
+ *          гарантируя уникальность даже при перезапусках клиента
+ * @return Строка с уникальным ID процесса в формате "PID_время_запуска"
  */
 QString NetworkClient::generateProcessId()
 {
@@ -1873,7 +2131,9 @@ QString NetworkClient::generateProcessId()
 
 /**
  * @brief Конструктор NetworkClient
- * Инициализирует все компоненты клиента и устанавливает соединения сигналов
+ * @details Инициализирует все компоненты клиента: сокет, таймеры, метрики,
+ *          статус устройства и генератор логов. Устанавливает соединения сигналов.
+ * @param parent Родительский QObject
  */
 NetworkClient::NetworkClient(QObject *parent)
     : QObject(parent),
@@ -1912,6 +2172,10 @@ NetworkClient::NetworkClient(QObject *parent)
     connect(m_heartbeatTimer, &QTimer::timeout, this, &NetworkClient::checkConnectionHealth);
 }
 
+/**
+ * @brief Деструктор NetworkClient
+ * @details Останавливает все операции и освобождает ресурсы
+ */
 NetworkClient::~NetworkClient()
 {
     // logMessage("NetworkClient destructor");
@@ -1920,7 +2184,9 @@ NetworkClient::~NetworkClient()
 
 /**
  * @brief Запускает клиент с указанными параметрами сервера
- * @param address Адрес сервера
+ * @details Разрешает адрес сервера, запускает таймеры статистики
+ *          и инициирует подключение
+ * @param address Адрес сервера (IP или hostname)
  * @param port Порт сервера
  */
 void NetworkClient::start(const QString &address, quint16 port)
@@ -1945,9 +2211,10 @@ void NetworkClient::start(const QString &address, quint16 port)
     tryReconnect();
 }
 
-
 /**
  * @brief Останавливает клиент и закрывает все соединения
+ * @details Останавливает все таймеры, разрывает соединение
+ *          и освобождает ресурсы
  */
 void NetworkClient::stop()
 {
@@ -1964,11 +2231,13 @@ void NetworkClient::stop()
 
 /**
  * @brief Обработчик успешного подключения к серверу
+ * @details Настраивает TCP keepalive, отправляет начальное рукопожатие
+ *          и запускает мониторинг соединения
  */
 void NetworkClient::onConnected()
 {
     logMessage(QString("Connected to server %1:%2")
-        .arg(m_serverAddress.toString()).arg(m_serverPort), TO_CONSOLE);
+                   .arg(m_serverAddress.toString()).arg(m_serverPort), TO_CONSOLE);
     // Останавливаем таймер переподключения
     m_reconnectTimer->stop();
     m_connectionAcknowledged = false;
@@ -1980,7 +2249,7 @@ void NetworkClient::onConnected()
     if (fd != -1) {
         int keepalive = 1;
         int keepidle = 5;    // Начать проверки через 5 секунд простоя
-        int keepintvl = 2;   // Интервал проверок 2 секунды
+        int keepintvl = 2;   // Интервал проверки 2 секунды
         int keepcnt = 3;     // Количество проверок перед разрывом
         setsockopt(fd, SOL_SOCKET, SO_KEEPALIVE, &keepalive, sizeof(keepalive));
         setsockopt(fd, IPPROTO_TCP, TCP_KEEPIDLE, &keepidle, sizeof(keepidle));
@@ -1996,6 +2265,8 @@ void NetworkClient::onConnected()
 
 /**
  * @brief Отправляет начальное рукопожатие с сервером
+ * @details Создает и отправляет JSON сообщение с типом "ClientHandshake",
+ *          содержащее уникальный идентификатор процесса и временную метку
  */
 void NetworkClient::sendInitialHandshake()
 {
@@ -2008,6 +2279,11 @@ void NetworkClient::sendInitialHandshake()
     // logMessage("Sent initial handshake");
 }
 
+/**
+ * @brief Обработчик отключения от сервера
+ * @details Останавливает мониторинг heartbeat, таймер отправки данных
+ *          и планирует переподключение
+ */
 void NetworkClient::onDisconnected()
 {
     // logMessage("Disconnected from server");
@@ -2024,6 +2300,8 @@ void NetworkClient::onDisconnected()
 
 /**
  * @brief Обработчик входящих данных от сервера
+ * @details Читает и парсит входящие JSON сообщения, разделенные символом новой строки,
+ *          и передает их на обработку parseServerMessage
  */
 void NetworkClient::onReadyRead()
 {
@@ -2051,6 +2329,12 @@ void NetworkClient::onReadyRead()
     }
 }
 
+/**
+ * @brief Обработчик ошибок сокета
+ * @details Логирует ошибки и обрабатывает сетевые проблемы,
+ *          инициируя переподключение при необходимости
+ * @param error Тип ошибки сокета
+ */
 void NetworkClient::onErrorOccurred(QAbstractSocket::SocketError error)
 {
     QString errorStr = m_socket->errorString();
@@ -2071,6 +2355,8 @@ void NetworkClient::onErrorOccurred(QAbstractSocket::SocketError error)
 
 /**
  * @brief Отправляет данные серверу (вызывается по таймеру)
+ * @details Проверяет условия подключения, добавляет случайную задержку
+ *          и отправляет метрики сети, статус устройства и логи
  */
 void NetworkClient::sendData()
 {
@@ -2105,6 +2391,8 @@ void NetworkClient::sendData()
 
 /**
  * @brief Пытается переподключиться к серверу
+ * @details Закрывает существующее соединение и пытается установить новое,
+ *          с обработкой таймаутов и повторными попытками
  */
 void NetworkClient::tryReconnect()
 {
@@ -2131,6 +2419,8 @@ void NetworkClient::tryReconnect()
 
 /**
  * @brief Обновляет данные в реальном времени
+ * @details Вызывается по таймеру для обновления метрик сети
+ *          и статуса устройства перед отправкой на сервер
  */
 void NetworkClient::updateRealTimeData()
 {
@@ -2142,6 +2432,11 @@ void NetworkClient::updateRealTimeData()
     }
 }
 
+/**
+ * @brief Отправляет метрики сети на сервер
+ * @details Создает JSON сообщение с типом "NetworkMetrics",
+ *          содержащее данные о bandwidth, latency и packet loss
+ */
 void NetworkClient::sendNetworkMetrics()
 {
     // logMessage("sendNetworkMetrics");
@@ -2154,6 +2449,11 @@ void NetworkClient::sendNetworkMetrics()
     m_socket->write(createJsonMessage(message));
 }
 
+/**
+ * @brief Отправляет статус устройства на сервер
+ * @details Создает JSON сообщение с типом "DeviceStatus",
+ *          содержащее данные о uptime, CPU и memory usage
+ */
 void NetworkClient::sendDeviceStatus()
 {
     // logMessage("sendDeviceStatus");
@@ -2167,6 +2467,11 @@ void NetworkClient::sendDeviceStatus()
     // logMessage("Sent DeviceStatus data");
 }
 
+/**
+ * @brief Отправляет лог-сообщение на сервер
+ * @details Создает JSON сообщение с типом "Log",
+ *          содержащее сгенерированное лог-сообщение
+ */
 void NetworkClient::sendLog()
 {
     // logMessage("sendLog");
@@ -2179,8 +2484,10 @@ void NetworkClient::sendLog()
 
 /**
  * @brief Создает JSON сообщение для отправки
+ * @details Конвертирует JSON объект в компактный формат
+ *          и добавляет символ новой строки для разделения сообщений
  * @param obj JSON объект для отправки
- * @return Массив байт готовый для отправки
+ * @return Массив байт готовый для отправки по сети
  */
 QByteArray NetworkClient::createJsonMessage(const QJsonObject &obj)
 {
@@ -2194,6 +2501,7 @@ QByteArray NetworkClient::createJsonMessage(const QJsonObject &obj)
 
 /**
  * @brief Обрабатывает сообщения от сервера
+ * @details Анализирует тип сообщения и вызывает соответствующие обработчики
  * @param message JSON объект с сообщением от сервера
  */
 void NetworkClient::parseServerMessage(const QJsonObject &message)
@@ -2246,6 +2554,12 @@ void NetworkClient::parseServerMessage(const QJsonObject &message)
     m_lastHeartbeatResponse = QDateTime::currentDateTime();
 }
 
+/**
+ * @brief Обрабатывает команды управления от сервера
+ * @details Обрабатывает команды StartDataExchange/StopDataExchange,
+ *          изменяет состояние обмена данными и отправляет подтверждение
+ * @param message JSON объект с командой управления
+ */
 void NetworkClient::processControlCommand(const QJsonObject &message)
 {
     QString type = message.value("type").toString();
@@ -2263,8 +2577,10 @@ void NetworkClient::processControlCommand(const QJsonObject &message)
 
 /**
  * @brief Логирует сообщение
- * @param message Текст сообщения
- * @param toConsole Выводить ли в консоль
+ * @details Форматирует сообщение с временной меткой и выводит его
+ *          в консоль или внутренний лог в зависимости от параметра
+ * @param message Текст сообщения для логирования
+ * @param toConsole Флаг указывающий на вывод в консоль (true) или внутренний лог (false)
  */
 void NetworkClient::logMessage(const QString &message, bool toConsole)
 {
@@ -2277,6 +2593,11 @@ void NetworkClient::logMessage(const QString &message, bool toConsole)
     }
 }
 
+/**
+ * @brief Запускает мониторинг heartbeat соединения
+ * @details Инициализирует счетчики таймаутов и запускает таймер
+ *          для периодической проверки активности соединения
+ */
 void NetworkClient::startHeartbeatMonitoring()
 {
     m_heartbeatTimeout = 0;
@@ -2285,12 +2606,22 @@ void NetworkClient::startHeartbeatMonitoring()
     // logMessage("Heartbeat monitoring started", TO_CONSOLE);
 }
 
+/**
+ * @brief Останавливает мониторинг heartbeat соединения
+ * @details Прекращает проверку активности соединения
+ */
 void NetworkClient::stopHeartbeatMonitoring()
 {
     m_heartbeatTimer->stop();
     // logMessage("Heartbeat monitoring stopped", TO_CONSOLE);
 }
 
+/**
+ * @brief Проверяет состояние соединения
+ * @details Вызывается периодически для проверки активности сервера,
+ *          отслеживает время с последнего ответа и инициирует
+ *          переподключение при длительном отсутствии ответа
+ */
 void NetworkClient::checkConnectionHealth()
 {
     if (m_socket->state() != QAbstractSocket::ConnectedState || !m_connectionAcknowledged) {
@@ -2313,6 +2644,11 @@ void NetworkClient::checkConnectionHealth()
     sendHeartbeat();
 }
 
+/**
+ * @brief Отправляет heartbeat запрос на сервер
+ * @details Создает и отправляет сообщение типа "Heartbeat" для
+ *          проверки активности соединения и получения ответа
+ */
 void NetworkClient::sendHeartbeat()
 {
     if (m_socket->state() != QAbstractSocket::ConnectedState || !m_connectionAcknowledged) {
@@ -2339,6 +2675,12 @@ void NetworkClient::sendHeartbeat()
 #include "../include/loggenerator.h"
 #include <QDateTime>
 
+/**
+ * @brief Конструктор LogGenerator
+ * @details Инициализирует генератор случайных чисел с безопасным seed
+ *          и заполняет списки сообщений разных уровней серьезности
+ * @param parent Родительский QObject
+ */
 LogGenerator::LogGenerator(QObject *parent)
     : QObject(parent),
     m_random(QRandomGenerator::securelySeeded()),
@@ -2417,6 +2759,12 @@ LogGenerator::LogGenerator(QObject *parent)
 {
 }
 
+/**
+ * @brief Генерирует случайное лог-сообщение
+ * @details Выбирает случайный уровень серьезности (INFO/WARNING/ERROR)
+ *          и генерирует соответствующее сообщение случайной длины
+ * @return QJsonObject с полями type, message, severity и timestamp
+ */
 QJsonObject LogGenerator::generateLog()
 {
     int severityChoice = m_random.bounded(100);
@@ -2441,6 +2789,11 @@ QJsonObject LogGenerator::generateLog()
     return logObject;
 }
 
+/**
+ * @brief Генерирует INFO сообщение случайной длины
+ * @details Выбирает между короткими, средними и длинными INFO сообщениями
+ * @return Строка с INFO сообщением
+ */
 QString LogGenerator::generateInfoMessage()
 {
     int lengthChoice = m_random.bounded(100);
@@ -2456,6 +2809,11 @@ QString LogGenerator::generateInfoMessage()
     }
 }
 
+/**
+ * @brief Генерирует WARNING сообщение случайной длины
+ * @details Выбирает между короткими, средними и длинными WARNING сообщениями
+ * @return Строка с WARNING сообщением
+ */
 QString LogGenerator::generateWarningMessage()
 {
     int lengthChoice = m_random.bounded(100);
@@ -2468,6 +2826,11 @@ QString LogGenerator::generateWarningMessage()
     }
 }
 
+/**
+ * @brief Генерирует ERROR сообщение случайной длины
+ * @details Выбирает между короткими, средними и длинными ERROR сообщениями
+ * @return Строка с ERROR сообщением
+ */
 QString LogGenerator::generateErrorMessage()
 {
     int lengthChoice = m_random.bounded(100);
@@ -2480,6 +2843,12 @@ QString LogGenerator::generateErrorMessage()
     }
 }
 
+/**
+ * @brief Генерирует длинное INFO сообщение
+ * @details Использует шаблоны с заполнителями для создания
+ *          детализированных INFO сообщений с реалистичными данными
+ * @return Длинная строка с INFO сообщением
+ */
 QString LogGenerator::generateLongInfoMessage()
 {
     static const QStringList longInfoTemplates = {
@@ -2512,6 +2881,12 @@ QString LogGenerator::generateLongInfoMessage()
         .arg(m_random.bounded(20) + 40);
 }
 
+/**
+ * @brief Генерирует длинное WARNING сообщение
+ * @details Использует шаблоны с заполнителями для создания
+ *          детализированных WARNING сообщений с реалистичными данными
+ * @return Длинная строка с WARNING сообщением
+ */
 QString LogGenerator::generateLongWarningMessage()
 {
     static const QStringList longWarningTemplates = {
@@ -2541,6 +2916,12 @@ QString LogGenerator::generateLongWarningMessage()
         .arg(m_random.bounded(10) + 3);
 }
 
+/**
+ * @brief Генерирует длинное ERROR сообщение
+ * @details Использует шаблоны с заполнителями для создания
+ *          детализированных ERROR сообщений с реалистичными данными
+ * @return Длинная строка с ERROR сообщением
+ */
 QString LogGenerator::generateLongErrorMessage()
 {
     static const QStringList longErrorTemplates = {
@@ -2594,6 +2975,12 @@ QString LogGenerator::generateLongErrorMessage()
 #include <QJsonObject>
 #include <QJsonDocument>
 
+/**
+ * @brief Конструктор NetworkMetrics
+ * @details Инициализирует метрики сети нулевыми значениями
+ *          и устанавливает начальные значения для расчета bandwidth
+ * @param parent Родительский QObject
+ */
 NetworkMetrics::NetworkMetrics(QObject *parent)
     : QObject(parent),
     m_bandwidth(0),
@@ -2605,6 +2992,13 @@ NetworkMetrics::NetworkMetrics(QObject *parent)
     m_lastTotalBytes = getTotalBytes();
 }
 
+/**
+ * @brief Обновляет все метрики сети
+ * @details Вызывает методы получения bandwidth, latency, packet loss
+ *          и имени интерфейса. Latency и packet loss обновляются
+ *          реже для уменьшения нагрузки
+ * @param targetAddress Целевой адрес для измерения latency и packet loss
+ */
 void NetworkMetrics::updateMetrics(const QHostAddress &targetAddress)
 {
     m_bandwidth = getNetworkBandwidth();
@@ -2617,6 +3011,12 @@ void NetworkMetrics::updateMetrics(const QHostAddress &targetAddress)
     counter++;
 }
 
+/**
+ * @brief Преобразует метрики сети в JSON объект
+ * @details Создает JSON объект с текущими значениями bandwidth,
+ *          latency, packet loss и имени интерфейса
+ * @return QJsonObject с метриками сети
+ */
 QJsonObject NetworkMetrics::toJson() const
 {
     QJsonObject metrics;
@@ -2627,6 +3027,12 @@ QJsonObject NetworkMetrics::toJson() const
     return metrics;
 }
 
+/**
+ * @brief Получает текущую пропускную способность сети
+ * @details Вычисляет bandwidth на основе разницы в переданных байтах
+ *          за интервал времени между вызовами метода
+ * @return Пропускная способность в байтах/секунду
+ */
 double NetworkMetrics::getNetworkBandwidth()
 {
     qint64 currentTotalBytes = getTotalBytes();
@@ -2641,6 +3047,13 @@ double NetworkMetrics::getNetworkBandwidth()
     return m_bandwidth;
 }
 
+/**
+ * @brief Получает задержку сети до целевого адреса
+ * @details Пытается измерить latency с помощью TCP эхо-запросов,
+ *          а при неудаче использует ping
+ * @param targetAddress Целевой адрес для измерения задержки
+ * @return Задержка в миллисекундах, или -1 при ошибке
+ */
 double NetworkMetrics::getNetworkLatency(const QHostAddress &targetAddress)
 {
     // Пробуем оба метода
@@ -2655,6 +3068,13 @@ double NetworkMetrics::getNetworkLatency(const QHostAddress &targetAddress)
     return -1;
 }
 
+/**
+ * @brief Получает потерю пакетов в сети
+ * @details Анализирует статистику TCP из /proc/net/snmp
+ *          для вычисления процента повторно переданных сегментов
+ * @param targetAddress Целевой адрес (не используется в текущей реализации)
+ * @return Процент потери пакетов (0-100)
+ */
 double NetworkMetrics::getPacketLoss(const QHostAddress &targetAddress)
 {
     Q_UNUSED(targetAddress);
@@ -2686,6 +3106,13 @@ double NetworkMetrics::getPacketLoss(const QHostAddress &targetAddress)
     return 0;
 }
 
+/**
+ * @brief Получает имя сетевого интерфейса для целевого адреса
+ * @details Использует команду ip route для определения интерфейса,
+ *          через который маршрутизируется трафик к целевому адресу
+ * @param targetAddress Целевой адрес для определения интерфейса
+ * @return Имя сетевого интерфейса, или "unknown" при ошибке
+ */
 QString NetworkMetrics::getNetworkInterfaceName(const QHostAddress &targetAddress)
 {
     QProcess process;
@@ -2709,6 +3136,12 @@ QString NetworkMetrics::getNetworkInterfaceName(const QHostAddress &targetAddres
     return "unknown";
 }
 
+/**
+ * @brief Получает общее количество переданных байтов через все интерфейсы
+ * @details Читает статистику из /proc/net/dev и суммирует байты
+ *          для всех активных интерфейсов (кроме loopback)
+ * @return Общее количество переданных и полученных байтов
+ */
 qint64 NetworkMetrics::getTotalBytes()
 {
     qint64 totalBytes = 0;
@@ -2739,6 +3172,14 @@ qint64 NetworkMetrics::getTotalBytes()
     return totalBytes;
 }
 
+/**
+ * @brief Измеряет задержку с помощью TCP эхо-запросов
+ * @details Устанавливает TCP соединение, отправляет эхо-запрос
+ *          и измеряет время до получения ответа
+ * @param address Целевой адрес
+ * @param port Целевой порт (по умолчанию 12345)
+ * @return RTT (Round-Trip Time) в миллисекундах, или -1 при ошибке
+ */
 double NetworkMetrics::measureTcpRttWithEcho(const QHostAddress &address, quint16 port)
 {
     QTcpSocket socket;
@@ -2793,6 +3234,13 @@ double NetworkMetrics::measureTcpRttWithEcho(const QHostAddress &address, quint1
     return -1;
 }
 
+/**
+ * @brief Измеряет задержку с помощью ping
+ * @details Запускает системную команду ping и парсит результат
+ *          для получения времени отклика
+ * @param address Целевой адрес для ping
+ * @return Задержка в миллисекундах, или -1 при ошибке
+ */
 double NetworkMetrics::measurePingLatency(const QHostAddress &address)
 {
     QProcess pingProcess;
@@ -2834,6 +3282,12 @@ double NetworkMetrics::measurePingLatency(const QHostAddress &address)
 #include <sys/sysinfo.h>
 #endif
 
+/**
+ * @brief Конструктор DeviceStatus
+ * @details Инициализирует метрики устройства нулевыми значениями
+ *          и устанавливает начальное время обновления CPU
+ * @param parent Родительский QObject
+ */
 DeviceStatus::DeviceStatus(QObject *parent)
     : QObject(parent),
     m_uptime(0),
@@ -2845,6 +3299,11 @@ DeviceStatus::DeviceStatus(QObject *parent)
     m_lastCpuUpdate = QDateTime::currentDateTime();
 }
 
+/**
+ * @brief Обновляет все метрики статуса устройства
+ * @details Вызывает методы получения uptime, CPU usage и memory usage
+ *          для актуализации текущих значений
+ */
 void DeviceStatus::updateStatus()
 {
     m_uptime = getUptime();
@@ -2852,6 +3311,12 @@ void DeviceStatus::updateStatus()
     m_memoryUsage = getMemoryUsage();
 }
 
+/**
+ * @brief Преобразует метрики статуса в JSON объект
+ * @details Создает JSON объект с текущими значениями uptime,
+ *          CPU usage и memory usage
+ * @return QJsonObject с метриками статуса устройства
+ */
 QJsonObject DeviceStatus::toJson() const
 {
     QJsonObject status;
@@ -2861,6 +3326,12 @@ QJsonObject DeviceStatus::toJson() const
     return status;
 }
 
+/**
+ * @brief Получает время работы системы (uptime)
+ * @details Использует системные вызовы для получения времени
+ *          с последней перезагрузки системы
+ * @return Время работы системы в секундах, или 0 при ошибке
+ */
 qint64 DeviceStatus::getUptime()
 {
 #ifdef Q_OS_LINUX
@@ -2872,6 +3343,13 @@ qint64 DeviceStatus::getUptime()
     return 0;
 }
 
+/**
+ * @brief Получает текущую загрузку CPU
+ * @details Читает статистику использования CPU из /proc/stat,
+ *          вычисляет процент использования на основе разницы
+ *          между текущими и предыдущими значениями
+ * @return Процент использования CPU (0-100), или 0 при ошибке
+ */
 double DeviceStatus::getCpuUsage()
 {
     qint64 total = 0;
@@ -2898,6 +3376,13 @@ double DeviceStatus::getCpuUsage()
     return 0;
 }
 
+/**
+ * @brief Получает текущее использование памяти
+ * @details Читает информацию о памяти из /proc/meminfo,
+ *          вычисляет процент использования на основе
+ *          доступной и общей памяти
+ * @return Процент использования памяти (0-100), или 0 при ошибке
+ */
 double DeviceStatus::getMemoryUsage()
 {
 #ifdef Q_OS_LINUX
@@ -2943,6 +3428,13 @@ double DeviceStatus::getMemoryUsage()
     return 0.0;
 }
 
+/**
+ * @brief Получает статистику использования CPU для Linux
+ * @details Читает первую строку из /proc/stat для получения
+ *          общей статистики использования CPU системой
+ * @param total Ссылка для возврата общего времени работы CPU
+ * @param idle Ссылка для возврата времени простоя CPU
+ */
 void DeviceStatus::getLinuxCpuUsage(qint64 &total, qint64 &idle)
 {
     QFile statFile("/proc/stat");
@@ -2975,6 +3467,14 @@ void DeviceStatus::getLinuxCpuUsage(qint64 &total, qint64 &idle)
 #include <QCommandLineParser>
 #include <QTimer>
 
+/**
+ * @brief Точка входа клиентского приложения
+ * @details Инициализирует приложение, парсит аргументы командной строки,
+ *          создает и запускает сетевого клиента
+ * @param argc Количество аргументов командной строки
+ * @param argv Массив аргументов командной строки
+ * @return Код возврата приложения (0 - успешное завершение)
+ */
 int main(int argc, char *argv[])
 {
     QCoreApplication app(argc, argv);
