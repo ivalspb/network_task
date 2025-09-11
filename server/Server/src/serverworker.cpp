@@ -33,13 +33,13 @@ void ServerWorker::checkClientConnections()
 {
     // qDebug() << "=== checkClientConnections START ===";
     // qDebug() << "Attempting to lock mutex...";
+    QList<QTcpSocket*> disconnectedSockets;
+    QList<int> disconnectedClientIds;
     QMutexLocker locker(&m_mutex);
     // qDebug() << "Mutex locked successfully";
     // qDebug() << "Active clients:" << m_clients.size();
     // qDebug() << "Socket map size:" << m_socketMap.size();
     QDateTime currentTime = QDateTime::currentDateTime();
-    QList<QTcpSocket*> disconnectedSockets;
-    QList<int> disconnectedClientIds;
     // СОБИРАЕМ данные для отключения под защитой мьютекса
     for (auto it = m_clients.begin(); it != m_clients.end(); ++it) {
         QTcpSocket* socket = it.key();
