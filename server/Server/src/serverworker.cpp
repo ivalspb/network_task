@@ -515,6 +515,7 @@ void ServerWorker::processClientData(QTcpSocket *socket, const QJsonObject &json
     }
     else if (type == "ControlResponse") {
         processControlCommand(socket, json);
+        return;
     }
     else if (type == "NetworkMetrics") {
         // qDebug() << "processClientData NetworkMetrics" << json;
